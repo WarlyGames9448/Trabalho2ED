@@ -1,3 +1,5 @@
+#pragma once
+
 class Transaction {
 
   private:
@@ -6,7 +8,7 @@ class Transaction {
     float execution_price;
 
   public:
-    Transaction(); // Construtor padrão para usar no get
+    Transaction() = default; // Construtor padrão para usar no get
     Transaction(int buy_order_id, int sell_order_id, float execution_price);
     ~Transaction();
 

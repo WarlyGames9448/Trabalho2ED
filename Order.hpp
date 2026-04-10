@@ -1,3 +1,5 @@
+#pragma once
+
 class Order {
 
   private:
@@ -7,7 +9,7 @@ class Order {
     int timestamp;
 
   public:
-    Order(); // Construtor padrão para usar no get
+    Order() = default; // Construtor padrão para usar no get
     Order(int id, char type, float price, int timestamp);
     ~Order();
 

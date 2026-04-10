@@ -9,18 +9,8 @@ OrderBook::Node::~Node() {
     this->prev->next = this->next; // next.S5 = S3
 }
 
-// Removemos todos os seguintes
-OrderBook::TransactionNode::~TransactionNode() {
-    TransactionNode* actual = this;
-    while (actual != nullptr) {
-        TransactionNode* temp = actual;
-        actual = actual->next;
-        delete temp;
-    }
-}
-
-// Iniciando transactions vazio
-OrderBook::OrderBook(): transactionsHead(nullptr), transactionsTail(nullptr) {
+OrderBook::OrderBook()
+    : transactionsHead(nullptr), transactionsTail(nullptr), buyCount(0), sellCount(0), transactionCount(0) {
     // Criando uma ordem fictícia.
     this->head = new Node(Order(0, 'H', 0, 0));
     // Queremos uma lista circular, vamos fazer head apontar pra si mesma
@@ -35,7 +25,13 @@ OrderBook::~OrderBook() {
     }
     delete this->head;
 
-    delete this->transactionsHead;
+    // Remove de head até tail
+    TransactionNode* actual = this->transactionsHead;
+    while (actual != nullptr) {
+        TransactionNode* temp = actual;
+        actual = actual->next;
+        delete temp;
+    }
 }
 
 // Se for do tipo 'S', percorre todos os Bn, se não encontrar correspondência, é inserido no fim dos Sn
@@ -58,11 +54,9 @@ bool OrderBook::submit(Order order) {
                 // Se o preço de compra for maior, troque o best para este
                 else if (chosen->order.getPrice() < actualPrice) {
                     chosen = actual;
-                    // Caso de empate e o timestamp de actual seja menor
-                } else if ((chosen->order.getPrice() == actualPrice) &&
-                           chosen->order.getTimestamp() > actual->order.getTimestamp()) {
-                    chosen = actual;
                 }
+                // No Caso de empate e o timestamp de chosen já é menor (pois nossa estrutura é ordenado), não precisa
+                // verificar.
             }
         }
 
@@ -103,11 +97,9 @@ bool OrderBook::submit(Order order) {
                 // Se o preço de compra for menor, troque o best para este
                 else if (chosen->order.getPrice() > actualPrice) {
                     chosen = actual;
-                    // Caso de empate e o timestamp de actual seja menor
-                } else if ((chosen->order.getPrice() == actualPrice) &&
-                           chosen->order.getTimestamp() > actual->order.getTimestamp()) {
-                    chosen = actual;
                 }
+                // No Caso de empate e o timestamp de chosen já é menor (pois nossa estrutura é ordenado), não precisa
+                // verificar.
             }
         }
 
@@ -138,24 +130,13 @@ bool OrderBook::submit(Order order) {
     }
 }
 
-// Como nossa lista está ordenada, percorremos apenas os Sn e Bn com id menor que o id pedido
 bool OrderBook::cancel(int id) {
-
-    // Percorre Sn até que o id seja maior
-    for (Node* actual = this->head->prev; actual->order.getType() == 'S' && actual->order.getId() <= id;
-         actual = actual->prev) {
+    // Percorre até chegar em H
+    for (Node* actual = this->head->next; actual->order.getType() != 'H'; actual = actual->next) {
         if (actual->order.getId() == id) {
+            if (actual->order.getType() == 'B') this->buyCount--;
+            else if (actual->order.getType() == 'S') this->sellCount--;
             delete actual;
-            this->sellCount--;
-            return true;
-        }
-    }
-    // Percorre Bn até que o id seja maior
-    for (Node* actual = this->head->next; actual->order.getType() == 'B' && actual->order.getId() <= id;
-         actual = actual->next) {
-        if (actual->order.getId() == id) {
-            delete actual;
-            this->buyCount--;
             return true;
         }
     }
@@ -203,20 +184,66 @@ Transaction* OrderBook::getTransactions(int* n) {
 
 // ================== Print ======================================================
 
-void OrderBook::printBuyOrders() {}
-void OrderBook::printSellOrders() {}
-void OrderBook::printTransactions() {}
+void OrderBook::printBuyOrders() {
+    std::cout << std::endl;
+    std::cout << "Buy Orders:" << std::endl;
+
+    if (buyCount == 0) {
+        std::cout << "(empty)" << std::endl;
+        return;
+    }
+
+    for (Node* actual = this->head->next; actual->order.getType() == 'B'; actual = actual->next) {
+        std::cout << "[" << actual->order.getId() << " | " << actual->order.getPrice() << " | "
+                  << actual->order.getTimestamp() << "]" << std::endl;
+    }
+
+    return;
+}
+
+void OrderBook::printSellOrders() {
+    std::cout << std::endl;
+    std::cout << "Sell Orders:" << std::endl;
+
+    if (sellCount == 0) {
+        std::cout << "(empty)" << std::endl;
+        return;
+    }
+
+    for (Node* actual = this->head->prev; actual->order.getType() == 'S'; actual = actual->prev) {
+        std::cout << "[" << actual->order.getId() << " | " << actual->order.getPrice() << " | "
+                  << actual->order.getTimestamp() << "]" << std::endl;
+    }
+
+    return;
+}
+
+void OrderBook::printTransactions() {
+    std::cout << std::endl;
+    std::cout << "Transactions:" << std::endl;
+
+    if (transactionCount == 0) {
+        std::cout << "(empty)" << std::endl;
+        return;
+    }
+
+    for (TransactionNode* actual = this->transactionsHead; actual != nullptr; actual = actual->next) {
+        std::cout << "[" << actual->transaction.getBuyOrderId() << " | " << actual->transaction.getSellOrderId()
+                  << " | " << actual->transaction.getExecutionPrice() << "]" << std::endl;
+    }
+    return;
+}
 
 // ===============================================================================
 
 void OrderBook::registerTransaction(int buy_order_id, int sell_order_id, float execution_price) {
-    TransactionNode* new_transaction = new TransactionNode(Transaction(buy_order_id, sell_order_id, execution_price));
     if (this->transactionCount == 0) {
-        this->transactionsHead = new_transaction;
+        this->transactionsHead = new TransactionNode(Transaction(buy_order_id, sell_order_id, execution_price));
+        this->transactionsTail = this->transactionsHead;
     } else {
         // só faz sentido ter next se transaction_count > 0
-        this->transactionsTail->next = new_transaction;
+        this->transactionsTail->next = new TransactionNode(Transaction(buy_order_id, sell_order_id, execution_price));
+        this->transactionsTail = this->transactionsTail->next;
     }
-    this->transactionsTail = new_transaction;
     this->transactionCount += 1;
 }
